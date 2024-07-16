@@ -6,7 +6,7 @@ class Settings:
         Morse2Alpha = 0
         Alpha2Morse = 1
 
-    def __init__(self, _ib=0.1875, _cb=1.0, _pm=Mode.Morse2Alpha, _sto=30):
+    def __init__(self, _ib=0.1875, _cb=1.0, _pm=Mode.Alpha2Morse, _sto=30):
         self.inputBuffer = _ib # This is the delay between a long press or a short press
         self.charBuffer = _cb # This is the delay before the character is converted
         self.programMode = _pm # The program's mode
@@ -96,7 +96,10 @@ MorseLexicon = {
 
 def getCode(_s: Settings, _c: str, _reverse: bool=False):
   # if not any(_c in q for q in MorseLexicon.get(_c)): return
+  if(_s.programMode==1): _c=_c.upper()
   # vals = MorseLexicon.values() if _s.programMode == (0 if _reverse==False else 1) else MorseLexicon.keys()
+  # print("MorseLexicon.values()" if _s.programMode == (0 if _reverse==False else 1) else "MorseLexicon.keys()")
+  
   vals = MorseLexicon.values() if _s.programMode == (0 if _reverse==False else 1) else MorseLexicon.keys()
   if not any(_c in q for q in vals): return
   # res = list(filter(lambda q: (_c in q), vals))
@@ -131,16 +134,33 @@ def main():
   timeFromLastInput=0.0
   code = ""; codeBuffer=""; codeString = ""
   print("Press ESC to stop")
-  while not keyboard.is_pressed('escape'):
-      if((datetime.datetime.now() - cBuf).total_seconds()>settings.selfTimeout): print("PROGRAM TIMEOUT"); break
+  # while not keyboard.is_pressed('escape'):
+  while True:
+      if((datetime.datetime.now() - cBuf).total_seconds()>settings.selfTimeout): print("\nPROGRAM TIMEOUT"); break
+      if(keyboard.is_pressed('escape')): print("\nPROGRAM TERMINATED"); break
       # something about char_registered to get around the first tick geing counted
-      if(program_started==True):
+      if(program_started==True and settings.programMode==0):
         if keyboard.is_pressed('space'):
           program_started=False
           elapsed_ticks = 0
           cBuf = datetime.datetime.now()
         else: continue
       else: elapsed_ticks = (datetime.datetime.now() - cBuf).total_seconds()
+      
+      # ALPHA2MORSE
+      if(settings.programMode==1):
+        _cs = alpha2Morse(codeString)
+        if(_cs==None): continue # to avoid "ghost" or "repeat" inputs
+        codeString = _cs if _cs!=None and type(codeString)!=type(None) else codeString
+        cBuf=datetime.datetime.now()
+        print(f"\n{codeString}", sep=' ', end='', flush=True)
+        print() # Temp, maybe
+        for _c in codeString:
+          c=getCode(settings, _c, False)
+          print(c, sep=' ', end=' ', flush=True)
+
+        continue
+      
       if(elapsed_ticks > settings.charBuffer and char_registered==False):
         char_registered=True
         cs = getCode(settings, code)
@@ -201,5 +221,28 @@ def codeOutput(settings,codeString,codeBuffer):
   for _c in codeString+codeBuffer:
     c=getCode(settings, _c, True)
     print(c, sep=' ', end=' ', flush=True)
+
+def alpha2Morse(_cs: str):
+  # if not keyboard.is_pressed('>'):
+    event = keyboard.read_event()
+    # THIS IS WHERE THE PROGRAM HALTS UNTIL AN INPUT IS PRESSED
+    if event.event_type == keyboard.KEY_DOWN:# and event.name != '>':
+      # print(f"event.name -> {event.name}")
+      cStr=_cs
+      # print(f"Key in Question -> {event.name if len(event.name)==1 else ''}")
+      keyShortcuts = {
+        "space" : " ",
+        "backspace": "backspace"
+      }
+      key = keyShortcuts.get(event.name) if keyShortcuts.get(event.name) != None else (event.name if len(event.name)==1 else "")
+      if(key=="backspace"): 
+        res = cStr[:-1]
+        print()
+        return res
+      # print(f"cStr-> {_cs} | key-> {key}")
+      # print((_k for _k in keyShortcuts[event.name] if _k==event.name))
+      # key = next((_k for _k in keyShortcuts[event.name] if _k==event.name), event.name if len(event.name)==1 else "")
+      cStr += key
+      return cStr
 
 main()
